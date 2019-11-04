@@ -7,7 +7,9 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
@@ -19,13 +21,21 @@ import com.yahoo.sketches.theta.Sketches;
 import com.yahoo.sketches.theta.UpdateSketch;
 
 public final class BenchmarkApplication {
-    public static void main(String[] args) throws Exception {
-        final long entries = 4_000_000;
-        final long offset = 2_000_000;
-        final int nominalEntries = 1 << 16;
 
-        testWithNativeSet(entries, offset);
-        testWithThetaSketch(entries, offset, nominalEntries);
+    private static final int TRY_COUNT = 20;
+
+    public static void main(String[] args) throws Exception {
+        final List<Long> testCases = Arrays.asList(
+                1_000L, 10_000L, 100_000L, 1_000_000L, 10_000_000L);
+        for (long entries : testCases) {
+            final long offset = entries / 2;
+            final int nominalEntries = 1 << 16;
+
+            System.out.println("\nEntries : " + entries);
+
+            testWithNativeSet(entries, offset);
+            testWithThetaSketch(entries, offset, nominalEntries);
+        }
     }
 
     private static void testWithNativeSet(long entries, long offset) throws Exception {
@@ -41,7 +51,7 @@ public final class BenchmarkApplication {
         }
 
         // read file
-        final long nativeSetTime = executeNTimes(10, () -> {
+        final long nativeSetTime = executeNTimes(TRY_COUNT, () -> {
             final Set<Long> set1 = new HashSet<>();
             final Set<Long> set2 = new HashSet<>();
             try (
@@ -57,10 +67,10 @@ public final class BenchmarkApplication {
                 }
             }
             set1.retainAll(set2);
-            System.out.println("Intersection is " + set1.size());
+//            System.out.print(set1.size() + ",");
             return null;
         });
-        System.out.println("Avg time of native set : " + nativeSetTime + "ms");
+        System.out.println("\nAvg time of native set : " + nativeSetTime + "ms");
     }
 
     private static void testWithThetaSketch(long entries, long offset, int nominalEntries) throws Exception {
@@ -82,7 +92,7 @@ public final class BenchmarkApplication {
         }
 
         // read file
-        final long sketchTime = executeNTimes(10, () -> {
+        final long sketchTime = executeNTimes(TRY_COUNT, () -> {
             final Sketch sketch1;
             final Sketch sketch2;
             try (
@@ -99,11 +109,11 @@ public final class BenchmarkApplication {
             final Intersection intersection = SetOperation
                     .builder().setNominalEntries(nominalEntries).buildIntersection();
             intersection.intersect(sketch1, sketch2);
-            System.out.println("Intersection is " + intersection.getResult().getEstimate());
+//            System.out.print(intersection.getResult().getEstimate() + ",");
             return null;
         });
 
-        System.out.println("Avg time of theta sketch : " + sketchTime + "ms");
+        System.out.println("\nAvg time of theta sketch : " + sketchTime + "ms");
     }
 
     private static long executeNTimes(int times, Callable<Void> callable) throws Exception {
